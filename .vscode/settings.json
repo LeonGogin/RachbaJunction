@@ -1,0 +1,32 @@
+{
+    "workbench.iconTheme": "vscode-icons",
+    "jshint.config": "/Users/l/Movies/courses/[Udemy] [Иван Петриченко] Полный курс по JavaScript + React - с нуля до результата (2020)/01 Подготовка к работе/000 Как проходить данный курс/JS_task_answers-master/.jshintrc",
+    "workbench.enableExperiments": false,
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wrappingIndent": "deepIndent",
+    "editor.formatOnSaveMode": "file",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true,
+    },
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": false,
+    "python.formatting.provider": "black",
+    "jupyter.askForKernelRestart": false,
+    "jupyter.sendSelectionToInteractiveWindow": false,
+    "vim.useSystemClipboard": true,
+    "vim.smartRelativeLine": true,
+    "workbench.editorAssociations": {
+        "*.ipynb": "jupyter-notebook"
+    },
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#0daa25"
+    },
+    "liveServer.settings.donotShowInfoMsg": true,
+    "liveServer.settings.donotVerifyTags": true,
+    "explorer.confirmDragAndDrop": false,
+    "notebook.cellFocusIndicator": "border",
+    "editor.lineNumbers": "relative",
+    "search.showLineNumbers": true,
+    "timeline.excludeSources": []
+}
