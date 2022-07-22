@@ -1,8 +1,8 @@
 import logging
 from enum import Enum
+from typing import Tuple
 
 import numpy as np
-import numpy.typing as npt
 import scipy.constants as cc
 from scipy import linalg
 
@@ -47,7 +47,7 @@ class WaveFunction:
 
     def __init__(self):
 
-        # may be only inherited from parent class
+        # will be set in the parent class
         self.vel_a = []
         self.vel_b = []
 
@@ -55,7 +55,6 @@ class WaveFunction:
         self.E_Z = 0.0
         self.sgn_alpha = -1
 
-        # will be set in the parent class
         self.mod = []
         self.band = []
         self.l = []
@@ -172,9 +171,9 @@ class WaveFunction:
 
     def calculate_velocity(self, E):
         """
-        Calculate the velocity of propagating modes
+        Calculate the velocity of propagating modes at energy E
             is called only if lead are detected
-            the function changte in place properties of the object
+            the function changte in-place properties of the object
             All other components have been prepared in get_boundary_matrix()
         """
         # [rigth lead velocity, left lead velocity]
@@ -197,6 +196,7 @@ class WaveFunction:
             k = self.wave_vector[i][0]
 
             if k_s * self.sgn_k[i] > 0 and self.mod[i] is WaveVector.k:
+                # incoming modes velocity
                 vel = (
                     self.sgn_k[i]
                     * (
@@ -207,6 +207,7 @@ class WaveFunction:
                 )
                 self.vel_a.append(vel)
             elif k_s * self.sgn_k[i] < 0 and self.mod[i] is WaveVector.k:
+                # outgoing modes velocity
                 vel = (
                     self.sgn_k[i]
                     * (
@@ -219,15 +220,27 @@ class WaveFunction:
 
 
 class RashbaJunction(WaveFunction):
-    _m = 0.022 * cc.m_e
+    """
+    This class affer the end point to handle the SO profile and compute the Scattering matrix.
+    This class should be initialised directly.
+    It override some properties and methods of its parrent(WaveFunction) and implement new methods and interfaces that should be used directly in the code.
+    
+    """
 
     def __init__(self, profile=None, logg=False, verbose=0):
         """
-        RachbaJunction(self, profile, h, logg = False)
-            h ia an array with [h_xy, h_z, phi_xy]
-            profile in an array of array [[interface position], alpha profile]
-                alpha profile is given in term of E'_so = E_so/H_x
+        RachbaJunction(profile, logg = False, verbose = 0)
+            profile in an array of array [interface position, alpha profile, E_Z profile(Optional)]
+                alpha profile is given in term of E'_so = E_so/E_Z
+                
+                In the case E_Z profile is not present: Magnetic field is assumed to be uniform
+                    In this way all the quantities are assumed to be adimensional E' = E/E_Z and x' = k_Z x
+
+                i8n the case E_Z profile are p0resent: the magnetic field is not uniform
+                    all the external parameters must be considered dimensional.
+                    however they still be replace by adimensional ones internally
         """
+        # set up the logging and verbose level
         if logg and verbose != 0:
             logger.disabled = False
             if verbose == 2:
@@ -241,19 +254,25 @@ class RashbaJunction(WaveFunction):
 
         # list of tuples (x, alpha, E_Z)
         if profile:
+            # inteface positions
             self.interface = profile[0]
+            # values of the SO energy
             self.alpha_profile = profile[1]
+            # initial value
             self.E_so = self.alpha_profile[0]
+            # check if the magnetic field is omogeneous
             if len(profile) == 3:
                 self.E_z_profile = profile[2]
                 logger.warning(
-                    "Use dimensional energy [meV] and length scale sqrt(2 m /hbar^2)[nm]"
+                    "Use dimensional energy [meV] and length scale sqrt(2 m /hbar^2)*x [nm]"
                 )
             else:
+                # if the magnetic field is omogeneous:
+                # set it to 1 -> does not affect other parameters
                 self.E_z_profile = np.ones(len(self.alpha_profile))
             self.E_Z = self.E_z_profile[0]
         else:
-            logger.warning("Defauld alpha profile")
+            logger.warning("Default alpha profile")
             self.interface = (1, 1)
             self.alpha_profile = 0
 
@@ -280,16 +299,37 @@ class RashbaJunction(WaveFunction):
         self._alpha = a
 
     # Interface to set up a E_so for each region
-    def __getitem__(self, ind):
+    def __getitem__(self, ind: float) -> float:
         return self.alpha_profile[ind]
 
-    def __setitem__(self, ind, item):
+    def __setitem__(self, ind: int, item: float):
         if ind < len(self.alpha_profile):
             self.alpha_profile[ind] = item
         else:
             raise IndexError()
 
-    def transfer_matrix_at(self, x, E):
+    def get_scattering_matrix(self, E: float, logg=False) -> ScatteringMatrix:
+        """
+        Higth level interface: typically is called in Notebooks to compute the scatering matrix for a given energy
+        """
+        M, vell = self.get_transfer_matrix(E)
+        if self.scattering_matrix:
+            res = self.scattering_matrix(M, vell, logg)
+        else:
+            raise ValueError(
+                "Fail to choose the initialisation method for scattering matrix. Possibly: energy out of range"
+            )
+        return res
+
+    def transfer_matrix_at(self, x: int, E: float) -> NDArray:
+        """
+        (x:int, E: float) -> np.ndarray((4, 4), np.complex256)
+
+        Compute the transfer matrix at x-th interface and energy E
+        In contrast with scattering matrix it is not normalized by velocity
+        
+        Is used to compute the wavefuction with multiple interfaces
+        """
         self.E_so = self.alpha_profile[x + 1]
         W_pls = self.get_boundary_matrix(self.interface[x], E, v=False)
 
@@ -298,18 +338,26 @@ class RashbaJunction(WaveFunction):
 
         return np.matmul(linalg.inv(W_pls), W_min)
 
-    def get_transfer_matrix(self, E):
+    def get_transfer_matrix(self, E: float) -> Tuple[NDArray, NDArray]:
         """
-        Higth level interface: typically is called in Notebooks to compute the scatering matrix for a given energy
+        (E: float) -> np.array((4, 4), np.complex256), np.array((2, 2) or (4, 4), np.complex256)
+
+        Second method in call-chain.
+
+        Compute the total transfer matrix througth all the interfaces.
+        Detect leads and compute corresonding velocity
+
+        Return the transfer matrix and the velocity normalizzation matrix. The dimension of later depend on the number of propagating chanels
         """
         # depend on alpha
         self.vel_a = []
         self.vel_b = []
         M = np.eye(4, dtype=np.complex256)
         n = len(self.interface)
+        # i in (0, N-1) where N is a number of interfaces
         for i in range(n):
-            # x_0 is the first transition
-            # x_{N+1} is an infinite --> matter only lambda_{N+1}
+
+            # rigth of the i-th interface
             self.E_so = self.alpha_profile[n - i]
             self.E_Z = self.E_z_profile[n - i]
             logger.debug(
@@ -317,14 +365,22 @@ class RashbaJunction(WaveFunction):
             )
 
             if n - i - 1 == n - 1:
-                # rigth lead velocity
+                # rigth lead detected
+                # set flag to compute velocity and choose the method to calculate the scattering matrix
                 v = True
             else:
                 v = False
+            # get rigth boundary matrix
+            #   NOTE: here all the parameters are substituted by adimensioal quantity
+            #   x-> k_Z x, E -> E/E_Z
+
+            # in the case of homogeneous magnetic field E_Z = 1
+            #   is equivalent to the case in which all the parameters always have been adimensional
             W_pls = self.get_boundary_matrix(
                 np.sqrt(self.E_Z) * self.interface[n - i - 1], E / self.E_Z, v=v
             )
 
+            # left of the i-th interface
             self.E_so = self.alpha_profile[n - i - 1]
             self.E_Z = self.E_z_profile[n - i - 1]
             logger.debug(
@@ -332,16 +388,19 @@ class RashbaJunction(WaveFunction):
             )
 
             if n - i - 1 == 0:
-                # rigth lead velocity
+                # left lead detected
                 v = True
             else:
                 v = False
+            # get left boundary matrix
             W_min = self.get_boundary_matrix(
                 np.sqrt(self.E_Z) * self.interface[n - i - 1], E / self.E_Z, v=v
             )
 
+            # matrix multiplication of the inverse of rigth boundary matyrix and the left one
             M = np.matmul(M, np.matmul(linalg.inv(W_pls), W_min))
 
+        # all the velocities have been computed within get_boundary_matrix()
         # [left lead velocity, rigth lead velocity]
         self.vel_a = np.array(self.vel_a)
         self.vel_b = np.array(self.vel_b)
@@ -350,17 +409,10 @@ class RashbaJunction(WaveFunction):
             self.vel_b = np.abs(np.array(self.vel_b[::-1]))
 
         elif len(self.vel_a) == 4:
-            # tmp = np.abs(np.array(self.vel_a[0:2]))
-            # self.vel_a[0:2] = np.abs(self.vel_a[2:4])
-            # self.vel_a[2:4] = tmp
             self.vel_a[0:2], self.vel_a[2:4] = (
                 np.abs(self.vel_a[2:4]),
                 np.abs(np.array(self.vel_a[0:2])),
             )
-
-            # tmp = np.abs(np.array(self.vel_b[0:2]))
-            # self.vel_b[0:2] = np.abs(self.vel_b[2:4])
-            # self.vel_b[2:4] = tmp
             self.vel_b[0:2], self.vel_b[2:4] = (
                 np.abs(self.vel_b[2:4]),
                 np.abs(np.array(self.vel_b[0:2])),
@@ -374,17 +426,17 @@ class RashbaJunction(WaveFunction):
 
         return M, vel_factor_mat
 
-    def get_scattering_matrix(self, E, logg=False):
-        M, vell = self.get_transfer_matrix(E)
-        res = self.scattering_matrix(M, vell, logg)
-        return res
-
-    def get_boundary_matrix(self, x, E, v=False):
+    def get_boundary_matrix(self, x: float, E: float, v=False) -> NDArray:
         """
-        Second method in call-chain
-            Energy is dimensionless E/E_Z
+        (x:float, E:float, v=False) -> np.ndarray((4, 4), np.complex256)
+
+
+        Therd method in call-chain
+            Energy and length are dimensionless E/E_Z, k_Z*x
             (with E_Z appropriate for each region)
         """
+        # choose the appropriate regime
+        #   for each regime will be choosen the corresponding lables and wavevctors for each energy
         if 1 / 2 < self.E_so:
             logger.info("-->Rashba regime")
             self.prepare_rashba_WF(E, v=v)
@@ -397,37 +449,50 @@ class RashbaJunction(WaveFunction):
 
         if v:
             # change the object property
-            #   compute velocity in place
+            #   compute velocity in-place
+            # (method is defined in parent class)
             self.calculate_velocity(E)
-        # make the length scales localy adimensional
-        # the position of each interface must be constan
-        # ---> independently on the local magnetic field
+        # get upper part of the boundary matrix
+        # (method defined in parent class)
         w_func = self.compile_wave_function(x)
+        # get lower part of the boundary matrix
+        # (method defined in parent class)
         flux = self.flux(E, w_func)
         return np.transpose(np.append(w_func, flux, axis=1))
 
-    def get_WF(self, x, E):
+    def get_WF(self, x: float, E: float) -> NDArray:
         """
-        use dimensionless energy (E/E_Z) only
+        (x:float, E:float) -> np.ndarray((2, 4), np.complex256)
+
+        Compute all the eigenstates at x for energy E
+
+        use dimensionless energy and length (E/E_Z) only
         """
         return self.get_boundary_matrix(x, E)[:2, :]
 
     def prepare_rashba_WF(self, E, v=False):
+        """
+        Prepare the lables for Rashba regime
+
+        Beaware of the case in wich energy match exactly the boundary values
+
+        Order: [incoming modes, outgoing modes]
+                [propagatingmodes, evanescent modes]
+        """
 
         if (
             -self.E_so * (1 + (1 / (2 * self.E_so + np.finfo(np.float64).eps)) ** 2)
             < E
             < -1
         ):
+            # under the gap energy range -> 4 propagating modes
             logger.info("\tunder the gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
             )
 
             self.l = (+1, +1, -1, -1)
-            # self.mod = 4 * ["k"]
             self.mod = 4 * (WaveVector.k,)
-            # check velocity components and order
             self.wave_vector = (
                 self.k_alpha(E, self.l[0], self.mod[0]),
                 -self.k_alpha(E, self.l[1], self.mod[1]),
@@ -437,6 +502,7 @@ class RashbaJunction(WaveFunction):
             self.band = (-1, -1, -1, -1)
 
         elif -1 < E < -1 / (4 * self.E_so + np.finfo(np.float64).eps):
+            # inside the gap energy range -> 2 propagating modes
             logger.info("\tfirst in the gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.in_gap if v and len(self.vel_a) != 0 else None
@@ -454,6 +520,7 @@ class RashbaJunction(WaveFunction):
             )
 
         elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) < E < 1:
+            # inside the gap energy range -> 2 propagating modes
             logger.info("\tsecond in the gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.in_gap if v and len(self.vel_a) != 0 else None
@@ -471,6 +538,7 @@ class RashbaJunction(WaveFunction):
             )
 
         elif 1 <= E:
+            # above the gap energy range -> 4 propagating modes
             logger.info("\tout of gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
@@ -488,15 +556,25 @@ class RashbaJunction(WaveFunction):
             )
         else:
             logger.warning("out of range energy")
+            raise ValueError("out of range energy")
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
     def prepare_week_zeeman_WF(self, E, v=False):
+        """
+        Prepare the lables for weak Zeeman regime
+
+        Beaware of the case in wich energy match exactly the boundary values
+
+        Order: [incoming modes, outgoing modes]
+                [propagatingmodes, evanescent modes]
+        """
 
         if (
             -self.E_so * (1 + (1 / (2 * self.E_so + np.finfo(np.float64).eps)) ** 2)
             < E
             < -1
         ):
+            # under the gap energy range -> 4 evanescent modes
             logger.info("\tunder the gap energy range")
             logger.warning(f"\tonly tunelings modes {self.E_so}")
             self.scattering_matrix = (
@@ -515,6 +593,7 @@ class RashbaJunction(WaveFunction):
             )
 
         elif -1 < E < -1 / (4 * self.E_so + np.finfo(np.float64).eps):
+            # inside the gap energy range -> 2 propagating modes
             logger.info("\tfirst in the gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.in_gap if v and len(self.vel_a) != 0 else None
@@ -532,6 +611,7 @@ class RashbaJunction(WaveFunction):
             )
 
         elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) < E < 1:
+            # inside the gap energy range -> 2 propagating modes
             logger.info("\tsecond in the gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.in_gap if v and len(self.vel_a) != 0 else None
@@ -549,6 +629,7 @@ class RashbaJunction(WaveFunction):
             )
 
         elif 1 <= E:
+            #  above the gap energy range -> 4 propagating modes
             logger.info("\tout of gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
@@ -564,14 +645,27 @@ class RashbaJunction(WaveFunction):
                 self.k_alpha(E, self.l[2], self.mod[2]),
                 -self.k_alpha(E, self.l[3], self.mod[3]),
             )
+        else:
+            logger.warning("out of range energy")
+            raise ValueError("out of range energy")
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
     def prepare_zeeman_WF(self, E, v=False):
+        """
+        Prepare the lables for Strong Zeeman regime
+
+        Beaware of the case in wich energy match exactly the boundary values
+
+        Order: [incoming modes, outgoing modes]
+                [propagatingmodes, evanescent modes]
+        """
+
         if (
             -self.E_so * (1 + (1 / (2 * self.E_so + np.finfo(np.float64).eps)) ** 2)
             < E
             < -1 / (4 * self.E_so + np.finfo(np.float64).eps)
         ):
+            # under the gap energy range -> 4 evanescent modes
             logger.info("\tunder the gap energy range")
             logger.warning(f"\tonly tunelings modes {self.E_so}")
             self.scattering_matrix = (
@@ -590,8 +684,8 @@ class RashbaJunction(WaveFunction):
             )
 
         elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) < E < -1:
+            # under the gap energy range -> 4 evanescent modes
             logger.info("\tfirst under the gap energy range")
-            # self.scattering_matrix = ScatteringMatrix.in_gap if v and len(self.vel_a) != 0 else None
             self.scattering_matrix = (
                 ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
             )
@@ -608,6 +702,7 @@ class RashbaJunction(WaveFunction):
             )
 
         elif -1 < E < 1:
+            # inside the gap energy range -> 2 propagating modes
             logger.info(f"\tin the gap energy range {v}, {len(self.vel_a)}")
             self.scattering_matrix = (
                 ScatteringMatrix.in_gap if v and len(self.vel_a) != 0 else None
@@ -625,6 +720,7 @@ class RashbaJunction(WaveFunction):
             )
 
         elif 1 <= E:
+            # above the gap energy range -> 4 propagating modes
             logger.info("\tout of gap energy range")
             self.scattering_matrix = (
                 ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
@@ -640,5 +736,8 @@ class RashbaJunction(WaveFunction):
                 self.k_alpha(E, self.l[2], self.mod[2]),
                 -self.k_alpha(E, self.l[3], self.mod[3]),
             )
+        else:
+            logger.warning("out of range energy")
+            raise ValueError("out of range energy")
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
