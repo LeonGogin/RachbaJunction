@@ -146,12 +146,12 @@ def scater_matrix_iunfo(x):
 
 def make_grid(rng, par, funk):
     """
-    evaluate function over a grid fo parameters 
+    evaluate function over a domain and grid fo parameters 
         rng: Iterable --> domain of the function
-        par:Iterable --> parameters; or a tuple of parameters
+        par: Iterable --> parameters; or a tuple of parameters
         funk: Iterable --> function to efaluate
-    ----
-        Dictionary(par: array(len(funk), len(par)))
+        
+        return Dictionary(par: array(len(funk), len(rng)))
     """
     res = {key: np.zeros((len(funk), len(rng)), dtype=object) for key in par}
     for ap in par:
