@@ -2,11 +2,16 @@ import math
 
 import numpy as np
 
-from RashbaJunction.RashbaJunction_0_4 import RashbaJunction, WaveVector
+from RashbaJunction.RashbaJunction_0_4 import WaveFunction, WaveVector
 from RashbaJunction.ScatteringMatrix import ScatteringMatrix
 
 
-class PureRashba(RashbaJunction):
+class PureRashba(WaveFunction):
+    """
+    Implementation of the pure Rashba wave function
+    It inherit from WaveFunctio calss for simplicity
+    """
+
     def __init__(self, *arg, **kwargs):
         super().__init__(*arg, **kwargs)
 
@@ -19,8 +24,8 @@ class PureRashba(RashbaJunction):
             return np.array(
                 [
                     np.sign(self.wave_vector[0]),
-                    [sng1, sng1],
-                    [sng2, sng2],
+                    sng1,
+                    sng2,
                     np.sign(self.wave_vector[-1]),
                 ]
             )
@@ -28,13 +33,8 @@ class PureRashba(RashbaJunction):
             return np.sign(self.wave_vector)
 
     def k_alpha(self, E, l, m):
-        return np.array(
-            [
-                np.sqrt(self.E_so) * (self.sgn_alpha + l * np.sqrt(1 + E / self.E_so)),
-                # k/k_so
-                np.sqrt(self.E_so) * (self.sgn_alpha + l * np.sqrt(1 + E / self.E_so)),
-            ]
-        )
+        # k/k_so
+        return np.sqrt(self.E_so) * (self.sgn_alpha + l * np.sqrt(1 + E / self.E_so))
 
     def E_0(self, E, l, m):
         return self.E_so * (self.sgn_alpha + l * np.sqrt(1 + E / self.E_so)) ** 2
@@ -44,15 +44,14 @@ class PureRashba(RashbaJunction):
             res = np.array([1, 0], dtype=np.complex256)
         else:
             res = np.array([0, 1], dtype=np.complex256)
-        return res * np.exp(complex(0, k[1] * x))
+        return res * np.exp(complex(0, k * x))
 
     #     def omega_q(self, x, q, b):
     #         pass\
-    def prepare_rashba_WF(self, E, v=False):
+    def prepare_WF(self, E: float, v=False):
         self.scattering_matrix = (
             ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
         )
-        #         print(E, self.E_so)
         if E >= -self.E_so:
             self.l = (+1, -1, -1, +1)
 
@@ -68,13 +67,7 @@ class PureRashba(RashbaJunction):
         else:
             raise ValueError
 
-    def prepare_week_zeeman_WF(self, E, v=False):
-        self.prepare_rashba_WF(E, v)
-
-    def prepare_zeeman_WF(self, E, v=False):
-        self.prepare_rashba_WF(E, v)
-
-    def calculate_velocity(self, E):
+    def calculate_velocity(self, E: float):
         # [rigth lead velocity, left lead velocity]
         if len(self.vel_a) == 0 or len(self.vel_b) == 0:
             # In rigth lead:
@@ -91,12 +84,10 @@ class PureRashba(RashbaJunction):
         vel = 0.0
 
         for i in range(len(self.wave_vector)):
-            vel = self.sgn_k[i][1] * np.sqrt(
+            vel = self.sgn_k[i] * np.sqrt(
                 self.E_0(E, self.l[i], self.mod[i])
             ) + self.band[i] * self.sgn_alpha * np.sqrt(self.E_so)
 
-            #             vel = np.sqrt(self.E_so) * self.band[i]*(-(self.sgn_alpha + self.l[i]*np.sqrt(1+E/self.E_so)) + self.sgn_alpha)
-            #             print(vel)
             if math.copysign(1, k_s * vel) > 0:
                 self.vel_a.append(vel)
             else:

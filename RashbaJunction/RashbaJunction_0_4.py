@@ -30,45 +30,44 @@ class WaveVector(Enum):
 
 
 class AbstracWaveFunction(ABC):
+    """
+    The Abstract class for the wave function. 
+    SHOULD NEVER BE INITIATED DIRECTLY, must be used as a parent class
+
+    Define interfaces tha must have any wave function
+    """
+
     def __init__(self):
         self.vel_a = []
         self.vel_b = []
 
-        # self.E_so = 0.0
-        self._alpha = 0.0
-        self._E_so = 0.0
-        self.E_Z = 0.0
-
         self.scattering_matrix = None
 
     @property
+    @abstractmethod
     def E_so(self):
-        return self._E_so
-
-    @E_so.setter
-    def E_so(self, e_so):
-        self._E_so = np.abs(e_so)
-        self._alpha = np.float64(np.sign(e_so))
+        return
 
     @property
+    @abstractmethod
     def sgn_alpha(self):
-        return self._alpha
+        return
 
     @abstractmethod
     def prepare_WF(self, E: float, v=False):
-        raise NotImplementedError
+        return
 
     @abstractmethod
     def calculate_velocity(self, E):
-        raise NotImplementedError
+        return
 
     @abstractmethod
     def compile_wave_function(self, x: float) -> NDArray:
-        raise NotImplementedError
+        return
 
     @abstractmethod
     def flux(self, E: float, w_func: NDArray) -> NDArray:
-        raise NotImplementedError
+        return
 
 
 class WaveFunction(AbstracWaveFunction):
@@ -77,7 +76,7 @@ class WaveFunction(AbstracWaveFunction):
         Wawe vector -> k_alpha
         'Zero' Energy -> E_0 = hbar^2 k^2/2 m
         Eigenfunctions -> omega_k, omega_q
-        Operator flusso -> flux
+        Flux operator -> flux
     Also it provide the interfaces to:
         calculate the velocity -> calculate_velocity
         compute the upper part of the transfer matrix -> compile_wave_function
@@ -94,7 +93,6 @@ class WaveFunction(AbstracWaveFunction):
         self.vel_a = []
         self.vel_b = []
 
-        # self.E_so = 0.0
         self._alpha = 0.0
         self._E_so = 0.0
         self.E_Z = 0.0
@@ -279,9 +277,11 @@ class WaveFunction(AbstracWaveFunction):
                 self.vel_b.append(vel)
 
     def prepare_WF(self, E: float, v=False):
+        """
+        choose the appropriate regime
+        for each regime will be choosen the corresponding lables and wavevctors for each energy
+        """
 
-        # choose the appropriate regime
-        #   for each regime will be choosen the corresponding lables and wavevctors for each energy
         if 1 / 2 < self.E_so:
             logger.info("-->Rashba regime")
             self.prepare_rashba_WF(E, v=v)
@@ -310,7 +310,7 @@ class WaveFunction(AbstracWaveFunction):
             # under the gap energy range -> 4 propagating modes
             logger.info("\tunder the gap energy range")
             self.scattering_matrix = (
-                ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
+                ScatteringMatrix.out_gap if v and len(self.vel_a) != 0 else None
             )
 
             self.l = (+1, +1, -1, -1)
@@ -363,7 +363,7 @@ class WaveFunction(AbstracWaveFunction):
             # above the gap energy range -> 4 propagating modes
             logger.info("\tout of gap energy range")
             self.scattering_matrix = (
-                ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
+                ScatteringMatrix.out_gap if v and len(self.vel_a) != 0 else None
             )
 
             self.l = (+1, +1, -1, -1)
@@ -454,7 +454,7 @@ class WaveFunction(AbstracWaveFunction):
             #  above the gap energy range -> 4 propagating modes
             logger.info("\tout of gap energy range")
             self.scattering_matrix = (
-                ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
+                ScatteringMatrix.out_gap if v and len(self.vel_a) != 0 else None
             )
 
             self.l = (+1, +1, -1, -1)
@@ -545,7 +545,7 @@ class WaveFunction(AbstracWaveFunction):
             # above the gap energy range -> 4 propagating modes
             logger.info("\tout of gap energy range")
             self.scattering_matrix = (
-                ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
+                ScatteringMatrix.out_gap if v and len(self.vel_a) != 0 else None
             )
 
             self.l = (+1, +1, -1, -1)
@@ -583,7 +583,8 @@ class RashbaJunction:
         """
         RachbaJunction(profile, logg = False, verbose = 0)
             profile in an array of array [interface position, alpha profile, E_Z profile(Optional)]
-                alpha profile is given in term of E'_so = E_so/E_Z
+                alpha profile is given in term of energy E'_so = E_so/E_Z
+                the sign before SO energy correspond to the sign of SOC constant
                 
                 In the case E_Z profile is not present: Magnetic field is assumed to be uniform
                     In this way all the quantities are assumed to be adimensional E' = E/E_Z and x' = k_Z x
@@ -591,11 +592,14 @@ class RashbaJunction:
                 i8n the case E_Z profile are p0resent: the magnetic field is not uniform
                     all the external parameters must be considered dimensional.
                     however they still be replace by adimensional ones internally
-        """
-        # self.vel_a = []
-        # self.vel_b = []
 
-        self.delegate = wave_function_delegate()
+        """
+
+        # check if delegate implement all the interfaces
+        if issubclass(wave_function_delegate, AbstracWaveFunction):
+            self.delegate = wave_function_delegate()
+        else:
+            raise ValueError("Delegate does not implement required interfaces")
 
         # set up the logging and verbose level
         if logg and verbose != 0:
@@ -606,8 +610,6 @@ class RashbaJunction:
                 logger.setLevel(logging.WARNING)
         else:
             logger.disabled = True
-
-        super(RashbaJunction, self).__init__()
 
         # list of tuples (x, alpha, E_Z)
         if profile:
@@ -687,7 +689,7 @@ class RashbaJunction:
 
         Return the transfer matrix and the velocity normalizzation matrix. The dimension of later depend on the number of propagating chanels
         """
-        # depend on alpha
+
         self.delegate.vel_a = []
         self.delegate.vel_b = []
         M = np.eye(4, dtype=np.complex256)
@@ -714,7 +716,7 @@ class RashbaJunction:
                 v = False
             # get rigth boundary matrix
             #   NOTE: here all the parameters are substituted by adimensioal quantity
-            #   x-> k_Z x, E -> E/E_Z
+            #   x-> k_Z x = sqrt(E_Z) x, E -> E/E_Z
 
             # in the case of homogeneous magnetic field E_Z = 1
             #   is equivalent to the case in which all the parameters always have been adimensional
@@ -775,24 +777,23 @@ class RashbaJunction:
         """
         (x:float, E:float, v=False) -> np.ndarray((4, 4), np.complex256)
 
-
         Therd method in call-chain
             Energy and length are dimensionless E/E_Z, k_Z*x
             (with E_Z appropriate for each region)
         """
-
+        # change the object property
+        #   prepare lables of the wave function
         self.delegate.prepare_WF(E, v=v)
 
         if v:
             # change the object property
             #   compute velocity in-place
-            # (method is defined in parent class)
             self.delegate.calculate_velocity(E)
         # get upper part of the boundary matrix
-        # (method defined in parent class)
+        #   the continuity of wave function
         w_func = self.delegate.compile_wave_function(x)
         # get lower part of the boundary matrix
-        # (method defined in parent class)
+        #   the continuity of flux
         flux = self.delegate.flux(E, w_func)
         return np.transpose(np.append(w_func, flux, axis=1))
 
