@@ -1,4 +1,5 @@
 import logging
+from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Tuple
 
@@ -28,7 +29,49 @@ class WaveVector(Enum):
     q = 2
 
 
-class WaveFunction:
+class AbstracWaveFunction(ABC):
+    def __init__(self):
+        self.vel_a = []
+        self.vel_b = []
+
+        # self.E_so = 0.0
+        self._alpha = 0.0
+        self._E_so = 0.0
+        self.E_Z = 0.0
+
+        self.scattering_matrix = None
+
+    @property
+    def E_so(self):
+        return self._E_so
+
+    @E_so.setter
+    def E_so(self, e_so):
+        self._E_so = np.abs(e_so)
+        self._alpha = np.float64(np.sign(e_so))
+
+    @property
+    def sgn_alpha(self):
+        return self._alpha
+
+    @abstractmethod
+    def prepare_WF(self, E: float, v=False):
+        raise NotImplementedError
+
+    @abstractmethod
+    def calculate_velocity(self, E):
+        raise NotImplementedError
+
+    @abstractmethod
+    def compile_wave_function(self, x: float) -> NDArray:
+        raise NotImplementedError
+
+    @abstractmethod
+    def flux(self, E: float, w_func: NDArray) -> NDArray:
+        raise NotImplementedError
+
+
+class WaveFunction(AbstracWaveFunction):
     """
     Difine centrall components of wave function:
         Wawe vector -> k_alpha
@@ -51,9 +94,10 @@ class WaveFunction:
         self.vel_a = []
         self.vel_b = []
 
-        self.E_so = 0.0
+        # self.E_so = 0.0
+        self._alpha = 0.0
+        self._E_so = 0.0
         self.E_Z = 0.0
-        self.sgn_alpha = -1
 
         self.mod = []
         self.band = []
@@ -61,6 +105,22 @@ class WaveFunction:
         self.wave_vector = []
 
         self.sgn_k = []
+
+        # method to initiate ScatteringMatrix class
+        self.scattering_matrix = None
+
+    @property
+    def E_so(self):
+        return self._E_so
+
+    @E_so.setter
+    def E_so(self, e_so):
+        self._E_so = np.abs(e_so)
+        self._alpha = np.float64(np.sign(e_so))
+
+    @property
+    def sgn_alpha(self):
+        return self._alpha
 
     def k_alpha(self, E: float, l: int, m: WaveVector) -> NDArray:
         """
@@ -218,223 +278,8 @@ class WaveFunction:
                 )
                 self.vel_b.append(vel)
 
+    def prepare_WF(self, E: float, v=False):
 
-class RashbaJunction(WaveFunction):
-    """
-    This class affer the end point to handle the SO profile and compute the Scattering matrix.
-    This class should be initialised directly.
-    It override some properties and methods of its parrent(WaveFunction) and implement new methods and interfaces that should be used directly in the code.
-    
-    """
-
-    def __init__(self, profile=None, logg=False, verbose=0):
-        """
-        RachbaJunction(profile, logg = False, verbose = 0)
-            profile in an array of array [interface position, alpha profile, E_Z profile(Optional)]
-                alpha profile is given in term of E'_so = E_so/E_Z
-                
-                In the case E_Z profile is not present: Magnetic field is assumed to be uniform
-                    In this way all the quantities are assumed to be adimensional E' = E/E_Z and x' = k_Z x
-
-                i8n the case E_Z profile are p0resent: the magnetic field is not uniform
-                    all the external parameters must be considered dimensional.
-                    however they still be replace by adimensional ones internally
-        """
-        # set up the logging and verbose level
-        if logg and verbose != 0:
-            logger.disabled = False
-            if verbose == 2:
-                logger.setLevel(logging.DEBUG)
-            elif verbose == 1:
-                logger.setLevel(logging.WARNING)
-        else:
-            logger.disabled = True
-
-        super(RashbaJunction, self).__init__()
-
-        # list of tuples (x, alpha, E_Z)
-        if profile:
-            # inteface positions
-            self.interface = profile[0]
-            # values of the SO energy
-            self.alpha_profile = profile[1]
-            # initial value
-            self.E_so = self.alpha_profile[0]
-            # check if the magnetic field is omogeneous
-            if len(profile) == 3:
-                self.E_z_profile = profile[2]
-                logger.warning(
-                    "Use dimensional energy [meV] and length scale sqrt(2 m /hbar^2)*x [nm]"
-                )
-            else:
-                # if the magnetic field is omogeneous:
-                # set it to 1 -> does not affect other parameters
-                self.E_z_profile = np.ones(len(self.alpha_profile))
-            self.E_Z = self.E_z_profile[0]
-        else:
-            logger.warning("Default alpha profile")
-            self.interface = (1, 1)
-            self.alpha_profile = 0
-
-        self.vell = []
-
-        # method to initiate ScatteringMatrix class
-        self.scattering_matrix = None
-
-    @property
-    def E_so(self):
-        return self._E_so
-
-    @E_so.setter
-    def E_so(self, e_so):
-        self._E_so = np.abs(e_so)
-        self._alpha = np.float64(np.sign(e_so))
-
-    @property
-    def sgn_alpha(self):
-        return self._alpha
-
-    @sgn_alpha.setter
-    def sgn_alpha(self, a):
-        self._alpha = a
-
-    # Interface to set up a E_so for each region
-    def __getitem__(self, ind: float) -> float:
-        return self.alpha_profile[ind]
-
-    def __setitem__(self, ind: int, item: float):
-        if ind < len(self.alpha_profile):
-            self.alpha_profile[ind] = item
-        else:
-            raise IndexError()
-
-    def get_scattering_matrix(self, E: float, logg=False) -> ScatteringMatrix:
-        """
-        Higth level interface: typically is called in Notebooks to compute the scatering matrix for a given energy
-        """
-        M, vell = self.get_transfer_matrix(E)
-        if self.scattering_matrix:
-            res = self.scattering_matrix(M, vell, logg)
-        else:
-            raise ValueError(
-                "Fail to choose the initialisation method for scattering matrix. Possibly: energy out of range"
-            )
-        return res
-
-    def transfer_matrix_at(self, x: int, E: float) -> NDArray:
-        """
-        (x:int, E: float) -> np.ndarray((4, 4), np.complex256)
-
-        Compute the transfer matrix at x-th interface and energy E
-        In contrast with scattering matrix it is not normalized by velocity
-        
-        Is used to compute the wavefuction with multiple interfaces
-        """
-        self.E_so = self.alpha_profile[x + 1]
-        W_pls = self.get_boundary_matrix(self.interface[x], E, v=False)
-
-        self.E_so = self.alpha_profile[x]
-        W_min = self.get_boundary_matrix(self.interface[x], E, v=False)
-
-        return np.matmul(linalg.inv(W_pls), W_min)
-
-    def get_transfer_matrix(self, E: float) -> Tuple[NDArray, NDArray]:
-        """
-        (E: float) -> np.array((4, 4), np.complex256), np.array((2, 2) or (4, 4), np.complex256)
-
-        Second method in call-chain.
-
-        Compute the total transfer matrix througth all the interfaces.
-        Detect leads and compute corresonding velocity
-
-        Return the transfer matrix and the velocity normalizzation matrix. The dimension of later depend on the number of propagating chanels
-        """
-        # depend on alpha
-        self.vel_a = []
-        self.vel_b = []
-        M = np.eye(4, dtype=np.complex256)
-        n = len(self.interface)
-        # i in (0, N-1) where N is a number of interfaces
-        for i in range(n):
-
-            # rigth of the i-th interface
-            self.E_so = self.alpha_profile[n - i]
-            self.E_Z = self.E_z_profile[n - i]
-            logger.debug(
-                f" {n-i-1}: X_i+ boundary matrix\n\tE_so = {self.E_so}, E_Z = {self.E_Z}\n\tx_i = {self.interface[n-i-1]}\n\talpha sign = {self.sgn_alpha}\n"
-            )
-
-            if n - i - 1 == n - 1:
-                # rigth lead detected
-                # set flag to compute velocity and choose the method to calculate the scattering matrix
-                v = True
-            else:
-                v = False
-            # get rigth boundary matrix
-            #   NOTE: here all the parameters are substituted by adimensioal quantity
-            #   x-> k_Z x, E -> E/E_Z
-
-            # in the case of homogeneous magnetic field E_Z = 1
-            #   is equivalent to the case in which all the parameters always have been adimensional
-            W_pls = self.get_boundary_matrix(
-                np.sqrt(self.E_Z) * self.interface[n - i - 1], E / self.E_Z, v=v
-            )
-
-            # left of the i-th interface
-            self.E_so = self.alpha_profile[n - i - 1]
-            self.E_Z = self.E_z_profile[n - i - 1]
-            logger.debug(
-                f" {n-i-1}: X_i- boundary matrix\n\tE_so = {self.E_so}, E_Z = {self.E_Z}\n\tx_i = {self.interface[n-i-1]}\n\talpha sign = {self.sgn_alpha}\n"
-            )
-
-            if n - i - 1 == 0:
-                # left lead detected
-                v = True
-            else:
-                v = False
-            # get left boundary matrix
-            W_min = self.get_boundary_matrix(
-                np.sqrt(self.E_Z) * self.interface[n - i - 1], E / self.E_Z, v=v
-            )
-
-            # matrix multiplication of the inverse of rigth boundary matyrix and the left one
-            M = np.matmul(M, np.matmul(linalg.inv(W_pls), W_min))
-
-        # all the velocities have been computed within get_boundary_matrix()
-        # [left lead velocity, rigth lead velocity]
-        self.vel_a = np.array(self.vel_a)
-        self.vel_b = np.array(self.vel_b)
-        if len(self.vel_a) == 2:
-            self.vel_a = np.abs(np.array(self.vel_a[::-1]))
-            self.vel_b = np.abs(np.array(self.vel_b[::-1]))
-
-        elif len(self.vel_a) == 4:
-            self.vel_a[0:2], self.vel_a[2:4] = (
-                np.abs(self.vel_a[2:4]),
-                np.abs(np.array(self.vel_a[0:2])),
-            )
-            self.vel_b[0:2], self.vel_b[2:4] = (
-                np.abs(self.vel_b[2:4]),
-                np.abs(np.array(self.vel_b[0:2])),
-            )
-
-        # collumn vector
-        v_b = np.lib.scimath.sqrt(self.vel_b.reshape((len(self.vel_b), 1)))
-        # row vector
-        v_a = 1 / np.lib.scimath.sqrt(self.vel_a.reshape((1, len(self.vel_a))))
-        vel_factor_mat = np.dot(v_b, v_a)
-
-        return M, vel_factor_mat
-
-    def get_boundary_matrix(self, x: float, E: float, v=False) -> NDArray:
-        """
-        (x:float, E:float, v=False) -> np.ndarray((4, 4), np.complex256)
-
-
-        Therd method in call-chain
-            Energy and length are dimensionless E/E_Z, k_Z*x
-            (with E_Z appropriate for each region)
-        """
         # choose the appropriate regime
         #   for each regime will be choosen the corresponding lables and wavevctors for each energy
         if 1 / 2 < self.E_so:
@@ -446,29 +291,6 @@ class RashbaJunction(WaveFunction):
         elif self.E_so < 1 / 4:
             logger.info("-->Zeeman regime")
             self.prepare_zeeman_WF(E, v=v)
-
-        if v:
-            # change the object property
-            #   compute velocity in-place
-            # (method is defined in parent class)
-            self.calculate_velocity(E)
-        # get upper part of the boundary matrix
-        # (method defined in parent class)
-        w_func = self.compile_wave_function(x)
-        # get lower part of the boundary matrix
-        # (method defined in parent class)
-        flux = self.flux(E, w_func)
-        return np.transpose(np.append(w_func, flux, axis=1))
-
-    def get_WF(self, x: float, E: float) -> NDArray:
-        """
-        (x:float, E:float) -> np.ndarray((2, 4), np.complex256)
-
-        Compute all the eigenstates at x for energy E
-
-        use dimensionless energy and length (E/E_Z) only
-        """
-        return self.get_boundary_matrix(x, E)[:2, :]
 
     def prepare_rashba_WF(self, E, v=False):
         """
@@ -740,4 +562,247 @@ class RashbaJunction(WaveFunction):
             logger.warning("out of range energy")
             raise ValueError("out of range energy")
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
+
+
+class RashbaJunction:
+    """
+    This class affer the end point to handle the SO profile and compute the Scattering matrix.
+    This class should be initialised directly.
+    It override some properties and methods of its parrent(WaveFunction) and implement new methods and interfaces that should be used directly in the code.
+    
+    """
+
+    def __init__(
+        self,
+        profile=None,
+        *,
+        wave_function_delegate: AbstracWaveFunction = WaveFunction,
+        logg=False,
+        verbose=0,
+    ):
+        """
+        RachbaJunction(profile, logg = False, verbose = 0)
+            profile in an array of array [interface position, alpha profile, E_Z profile(Optional)]
+                alpha profile is given in term of E'_so = E_so/E_Z
+                
+                In the case E_Z profile is not present: Magnetic field is assumed to be uniform
+                    In this way all the quantities are assumed to be adimensional E' = E/E_Z and x' = k_Z x
+
+                i8n the case E_Z profile are p0resent: the magnetic field is not uniform
+                    all the external parameters must be considered dimensional.
+                    however they still be replace by adimensional ones internally
+        """
+        # self.vel_a = []
+        # self.vel_b = []
+
+        self.delegate = wave_function_delegate()
+
+        # set up the logging and verbose level
+        if logg and verbose != 0:
+            logger.disabled = False
+            if verbose == 2:
+                logger.setLevel(logging.DEBUG)
+            elif verbose == 1:
+                logger.setLevel(logging.WARNING)
+        else:
+            logger.disabled = True
+
+        super(RashbaJunction, self).__init__()
+
+        # list of tuples (x, alpha, E_Z)
+        if profile:
+            # inteface positions
+            self.interface = profile[0]
+            # values of the SO energy
+            self.alpha_profile = profile[1]
+            # initial value
+            self.E_so = self.alpha_profile[0]
+            # check if the magnetic field is omogeneous
+            if len(profile) == 3:
+                self.E_z_profile = profile[2]
+                logger.warning(
+                    "Use dimensional energy [meV] and length scale sqrt(2 m /hbar^2)*x [nm]"
+                )
+            else:
+                # if the magnetic field is omogeneous:
+                # set it to 1 -> does not affect other parameters
+                self.E_z_profile = np.ones(len(self.alpha_profile))
+            self.E_Z = self.E_z_profile[0]
+        else:
+            logger.warning("Default alpha profile")
+            self.interface = (1, 1)
+            self.alpha_profile = 0
+
+        self.vell = []
+
+    # Interface to set up a E_so for each region
+    def __getitem__(self, ind: float) -> float:
+        return self.alpha_profile[ind]
+
+    def __setitem__(self, ind: int, item: float):
+        if ind < len(self.alpha_profile):
+            self.alpha_profile[ind] = item
+        else:
+            raise IndexError()
+
+    def get_scattering_matrix(self, E: float, logg=False) -> ScatteringMatrix:
+        """
+        Higth level interface: typically is called in Notebooks to compute the scatering matrix for a given energy
+        """
+        M, vell = self.get_transfer_matrix(E)
+        if self.delegate.scattering_matrix:
+            res = self.delegate.scattering_matrix(M, vell, logg)
+        else:
+            raise ValueError(
+                "Fail to choose the initialisation method for scattering matrix. Possibly: energy out of range"
+            )
+        # res = self.scattering_matrix(M, vell, logg)
+        return res
+
+    def transfer_matrix_at(self, x: int, E: float) -> NDArray:
+        """
+        (x:int, E: float) -> np.ndarray((4, 4), np.complex256)
+
+        Compute the transfer matrix at x-th interface and energy E
+        In contrast with scattering matrix it is not normalized by velocity
+        
+        Is used to compute the wavefuction with multiple interfaces
+        """
+        self.E_so = self.alpha_profile[x + 1]
+        W_pls = self.get_boundary_matrix(self.interface[x], E, v=False)
+
+        self.E_so = self.alpha_profile[x]
+        W_min = self.get_boundary_matrix(self.interface[x], E, v=False)
+
+        return np.matmul(linalg.inv(W_pls), W_min)
+
+    def get_transfer_matrix(self, E: float) -> Tuple[NDArray, NDArray]:
+        """
+        (E: float) -> np.array((4, 4), np.complex256), np.array((2, 2) or (4, 4), np.complex256)
+
+        Second method in call-chain.
+
+        Compute the total transfer matrix througth all the interfaces.
+        Detect leads and compute corresonding velocity
+
+        Return the transfer matrix and the velocity normalizzation matrix. The dimension of later depend on the number of propagating chanels
+        """
+        # depend on alpha
+        self.delegate.vel_a = []
+        self.delegate.vel_b = []
+        M = np.eye(4, dtype=np.complex256)
+        n = len(self.interface)
+        # i in (0, N-1) where N is a number of interfaces
+        for i in range(n):
+
+            # rigth of the i-th interface
+            E_so = self.alpha_profile[n - i]
+            E_Z = self.E_z_profile[n - i]
+
+            self.delegate.E_so = E_so
+            self.delegate.E_Z = E_Z
+
+            logger.debug(
+                f" {n-i-1}: X_i+ boundary matrix\n\tE_so = {E_so}, E_Z = {E_Z}\n\tx_i = {self.interface[n-i-1]}\n\talpha sign = {np.sign(E_so)}\n"
+            )
+
+            if n - i - 1 == n - 1:
+                # rigth lead detected
+                # set flag to compute velocity and choose the method to calculate the scattering matrix
+                v = True
+            else:
+                v = False
+            # get rigth boundary matrix
+            #   NOTE: here all the parameters are substituted by adimensioal quantity
+            #   x-> k_Z x, E -> E/E_Z
+
+            # in the case of homogeneous magnetic field E_Z = 1
+            #   is equivalent to the case in which all the parameters always have been adimensional
+            W_pls = self.get_boundary_matrix(
+                np.sqrt(E_Z) * self.interface[n - i - 1], E / E_Z, v=v
+            )
+
+            # left of the i-th interface
+            E_so = self.alpha_profile[n - i - 1]
+            E_Z = self.E_z_profile[n - i - 1]
+
+            self.delegate.E_so = E_so
+            self.delegate.E_Z = E_Z
+            logger.debug(
+                f" {n-i-1}: X_i- boundary matrix\n\tE_so = {E_so}, E_Z = {E_Z}\n\tx_i = {self.interface[n-i-1]}\n\talpha sign = {np.sign(E_so)}\n"
+            )
+
+            if n - i - 1 == 0:
+                # left lead detected
+                v = True
+            else:
+                v = False
+            # get left boundary matrix
+            W_min = self.get_boundary_matrix(
+                np.sqrt(E_Z) * self.interface[n - i - 1], E / E_Z, v=v
+            )
+
+            # matrix multiplication of the inverse of rigth boundary matyrix and the left one
+            M = np.matmul(M, np.matmul(linalg.inv(W_pls), W_min))
+
+        # all the velocities have been computed within get_boundary_matrix()
+        # [left lead velocity, rigth lead velocity]
+        vel_a = np.array(self.delegate.vel_a)
+        vel_b = np.array(self.delegate.vel_b)
+        if len(vel_a) == 2:
+            vel_a = np.abs(np.array(vel_a[::-1]))
+            vel_b = np.abs(np.array(vel_b[::-1]))
+
+        elif len(vel_a) == 4:
+            vel_a[0:2], vel_a[2:4] = (
+                np.abs(vel_a[2:4]),
+                np.abs(np.array(vel_a[0:2])),
+            )
+            vel_b[0:2], vel_b[2:4] = (
+                np.abs(vel_b[2:4]),
+                np.abs(np.array(vel_b[0:2])),
+            )
+
+        # collumn vector
+        v_b = np.lib.scimath.sqrt(vel_b.reshape((len(vel_b), 1)))
+        # row vector
+        v_a = 1 / np.lib.scimath.sqrt(vel_a.reshape((1, len(vel_a))))
+        vel_factor_mat = np.dot(v_b, v_a)
+
+        return M, vel_factor_mat
+
+    def get_boundary_matrix(self, x: float, E: float, v=False) -> NDArray:
+        """
+        (x:float, E:float, v=False) -> np.ndarray((4, 4), np.complex256)
+
+
+        Therd method in call-chain
+            Energy and length are dimensionless E/E_Z, k_Z*x
+            (with E_Z appropriate for each region)
+        """
+
+        self.delegate.prepare_WF(E, v=v)
+
+        if v:
+            # change the object property
+            #   compute velocity in-place
+            # (method is defined in parent class)
+            self.delegate.calculate_velocity(E)
+        # get upper part of the boundary matrix
+        # (method defined in parent class)
+        w_func = self.delegate.compile_wave_function(x)
+        # get lower part of the boundary matrix
+        # (method defined in parent class)
+        flux = self.delegate.flux(E, w_func)
+        return np.transpose(np.append(w_func, flux, axis=1))
+
+    def get_WF(self, x: float, E: float) -> NDArray:
+        """
+        (x:float, E:float) -> np.ndarray((2, 4), np.complex256)
+
+        Compute all the eigenstates at x for energy E
+
+        use dimensionless energy and length (E/E_Z) only
+        """
+        return self.get_boundary_matrix(x, E)[:2, :]
 
