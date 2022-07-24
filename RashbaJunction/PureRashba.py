@@ -2,8 +2,13 @@ import math
 
 import numpy as np
 
-from RashbaJunction.RashbaJunction_0_4 import WaveFunction, WaveVector
+from RashbaJunction.RashbaJunction_0_4 import (
+    WaveFunction,
+    WaveVector,
+)
 from RashbaJunction.ScatteringMatrix import ScatteringMatrix
+
+from .Errors import EnergyOutOfRangeError
 
 
 class PureRashba(WaveFunction):
@@ -17,9 +22,9 @@ class PureRashba(WaveFunction):
 
     @property
     def sgn_k(self):
-        if self.wave_vector[1][0] == 0:
-            sng1 = math.copysign(1, self.wave_vector[1][0])
-            sng2 = math.copysign(1, self.wave_vector[2][0])
+        if self.wave_vector[1] == 0:
+            sng1 = math.copysign(1, self.wave_vector[1])
+            sng2 = math.copysign(1, self.wave_vector[2])
 
             return np.array(
                 [
@@ -31,6 +36,10 @@ class PureRashba(WaveFunction):
             )
         else:
             return np.sign(self.wave_vector)
+
+    @sgn_k.setter
+    def sgn_k(self, a):
+        pass
 
     def k_alpha(self, E, l, m):
         # k/k_so
@@ -50,7 +59,7 @@ class PureRashba(WaveFunction):
     #         pass\
     def prepare_WF(self, E: float, v=False):
         self.scattering_matrix = (
-            ScatteringMatrix.above_gap if v and len(self.vel_a) != 0 else None
+            ScatteringMatrix.out_gap if v and len(self.vel_a) != 0 else None
         )
         if E >= -self.E_so:
             self.l = (+1, -1, -1, +1)
@@ -65,7 +74,9 @@ class PureRashba(WaveFunction):
                 -self.band[3] * self.k_alpha(E, self.l[3], self.mod[3]),
             )
         else:
-            raise ValueError
+            raise EnergyOutOfRangeError(
+                f"Pure Rashba E={E:.2f} < -Eso = {-self.E_so:.2f}"
+            )
 
     def calculate_velocity(self, E: float):
         # [rigth lead velocity, left lead velocity]

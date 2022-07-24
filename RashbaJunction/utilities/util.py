@@ -7,19 +7,24 @@ from matplotlib import ticker
 
 NDArray = np.ndarray
 
+from ..Errors import EnergyOutOfRangeError, InsulatorError
+
 # from scipy import linalg
 from tabulate import tabulate
 
 
-def renormallize_result(res, dy=10):
-    #     x_int = x
-    #     res_int = res
-    for v in res.values():
-        for i in v:
-            pos = np.where(np.abs(np.diff(i)) >= dy)[0]
-            if len(pos) != 0:
-                i[pos] = np.nan
-            pos = 0
+def error_decorator(func):
+    def int_func(*arg):
+        try:
+            return func(*arg)
+        except EnergyOutOfRangeError as e:
+            print(e, f"x={arg[0]}, par={arg[1]}")
+            return np.nan
+        except InsulatorError as e:
+            print(e, f"x={arg[0]}, par={arg[1]}")
+            return np.nan
+
+    return int_func
 
 
 def adjuct_Tick(axs: NDArray, **kwarg):

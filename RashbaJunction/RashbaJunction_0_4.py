@@ -7,29 +7,17 @@ import numpy as np
 import scipy.constants as cc
 from scipy import linalg
 
-import RashbaJunction.utilities as ut
 from RashbaJunction.ScatteringMatrix import ScatteringMatrix
+from RashbaJunction.utilities import get_loger
 
-logger = ut.get_loger(__name__)
+from .Errors import EnergyOutOfRangeError, InsulatorError
+
+logger = get_loger(__name__)
 
 # Define type hint
 # NDArray = npt.NDArray
 NDArray = np.ndarray
 # Ctype = np.complex256
-
-
-class EnergyOutOfRangeError(Exception):
-    """
-    The erroe that is raised when for given energy can not be defined neither propagating nor evanescent modes
-    """
-
-    pass
-
-
-class InsulatorError(Exception):
-    """
-    The error that is raised in the case only evanescent modes are present and the scatterring matrix can not be defined properly
-    """
 
 
 class WaveVector(Enum):
@@ -393,7 +381,8 @@ class WaveFunction(AbstracWaveFunction):
         else:
             logger.warning("out of range energy")
             raise EnergyOutOfRangeError(
-                "In Rashba dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+                # "In Rashba dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+                f"In Rashba dominated regime E = {E:.2f} < -Eso (1 + (Ez/2Eso)^2) = {-self.E_so*(1+(self.E_Z/2/self.E_so)**2):.2f}"
             )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
@@ -486,7 +475,8 @@ class WaveFunction(AbstracWaveFunction):
         else:
             logger.warning("out of range energy")
             raise EnergyOutOfRangeError(
-                "In Weak Zeeamn dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+                # "In Weak Zeeamn dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+                f"In Weak Zeeman regime E = {E:.2f} < -Eso (1 + (Ez/2Eso)^2) = {-self.E_so*(1+(self.E_Z/2/self.E_so)**2):.2f}"
             )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
@@ -579,7 +569,8 @@ class WaveFunction(AbstracWaveFunction):
         else:
             logger.warning("out of range energy")
             raise EnergyOutOfRangeError(
-                "In Zeeamn dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+                # "In Zeeamn dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+                f"In Zeeman regime E = {E:.2f} < -Eso (1 + (Ez/2Eso)^2) = {-self.E_so*(1+(self.E_Z/2/self.E_so)**2):.2f}"
             )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
@@ -609,7 +600,7 @@ class RashbaJunction:
                 In the case E_Z profile is not present: Magnetic field is assumed to be uniform
                     In this way all the quantities are assumed to be adimensional E' = E/E_Z and x' = k_Z x
 
-                i8n the case E_Z profile are p0resent: the magnetic field is not uniform
+                in the case E_Z profile are p0resent: the magnetic field is not uniform
                     all the external parameters must be considered dimensional.
                     however they still be replace by adimensional ones internally
 
