@@ -18,6 +18,20 @@ NDArray = np.ndarray
 # Ctype = np.complex256
 
 
+class EnergyOutOfRangeError(Exception):
+    """
+    The erroe that is raised when for given energy can not be defined neither propagating nor evanescent modes
+    """
+
+    pass
+
+
+class InsulatorError(Exception):
+    """
+    The error that is raised in the case only evanescent modes are present and the scatterring matrix can not be defined properly
+    """
+
+
 class WaveVector(Enum):
     """
     Enumerate all wavevector types
@@ -378,7 +392,9 @@ class WaveFunction(AbstracWaveFunction):
             )
         else:
             logger.warning("out of range energy")
-            raise ValueError("out of range energy")
+            raise EnergyOutOfRangeError(
+                "In Rashba dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+            )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
     def prepare_week_zeeman_WF(self, E, v=False):
@@ -399,9 +415,9 @@ class WaveFunction(AbstracWaveFunction):
             # under the gap energy range -> 4 evanescent modes
             logger.info("\tunder the gap energy range")
             logger.warning(f"\tonly tunelings modes {self.E_so}")
-            self.scattering_matrix = (
-                ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
-            )
+            # self.scattering_matrix = (
+            #     ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
+            # )
 
             self.l = (+1, +1, -1, -1)
             self.band = (-1, -1, -1, -1)
@@ -469,7 +485,9 @@ class WaveFunction(AbstracWaveFunction):
             )
         else:
             logger.warning("out of range energy")
-            raise ValueError("out of range energy")
+            raise EnergyOutOfRangeError(
+                "In Weak Zeeamn dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+            )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
     def prepare_zeeman_WF(self, E, v=False):
@@ -490,9 +508,9 @@ class WaveFunction(AbstracWaveFunction):
             # under the gap energy range -> 4 evanescent modes
             logger.info("\tunder the gap energy range")
             logger.warning(f"\tonly tunelings modes {self.E_so}")
-            self.scattering_matrix = (
-                ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
-            )
+            # self.scattering_matrix = (
+            #     ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
+            # )
 
             self.l = (+1, +1, -1, -1)
             self.band = (-1, -1, -1, -1)
@@ -508,9 +526,9 @@ class WaveFunction(AbstracWaveFunction):
         elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) < E < -1:
             # under the gap energy range -> 4 evanescent modes
             logger.info("\tfirst under the gap energy range")
-            self.scattering_matrix = (
-                ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
-            )
+            # self.scattering_matrix = (
+            #     ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
+            # )
 
             self.l = (+1, +1, -1, -1)
             self.band = (+1, +1, -1, -1)
@@ -560,7 +578,9 @@ class WaveFunction(AbstracWaveFunction):
             )
         else:
             logger.warning("out of range energy")
-            raise ValueError("out of range energy")
+            raise EnergyOutOfRangeError(
+                "In Zeeamn dominated regime E < Eso (1 + (Ez/2Eso)^2)"
+            )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
 
 
@@ -617,8 +637,10 @@ class RashbaJunction:
             self.interface = profile[0]
             # values of the SO energy
             self.alpha_profile = profile[1]
+
             # initial value
-            self.E_so = self.alpha_profile[0]
+            # self.E_so = self.alpha_profile[0]
+
             # check if the magnetic field is omogeneous
             if len(profile) == 3:
                 self.E_z_profile = profile[2]
@@ -629,11 +651,12 @@ class RashbaJunction:
                 # if the magnetic field is omogeneous:
                 # set it to 1 -> does not affect other parameters
                 self.E_z_profile = np.ones(len(self.alpha_profile))
-            self.E_Z = self.E_z_profile[0]
+
+            # self.E_Z = self.E_z_profile[0]
         else:
             logger.warning("Default alpha profile")
-            self.interface = (1, 1)
-            self.alpha_profile = 0
+            self.interface = [1]
+            self.alpha_profile = [0, 0]
 
         self.vell = []
 
@@ -654,11 +677,14 @@ class RashbaJunction:
         M, vell = self.get_transfer_matrix(E)
         if self.delegate.scattering_matrix:
             res = self.delegate.scattering_matrix(M, vell, logg)
+            self.delegate.scattering_matrix = None
         else:
-            raise ValueError(
-                "Fail to choose the initialisation method for scattering matrix. Possibly: energy out of range"
+            # NOTE: In the case of inhomogeneous magnetic field the gap in principle can be different.
+            #        In this way at given energy in leads can be characterized by differnt number of chanels.
+            #        THIS CODE IS NOT SUITABLE TO HANDLE THIS PROBLEM
+            raise InsulatorError(
+                "Inside one or both leads only evanescent modes are present. Scattering matrix can not be defined properly; fail to choose the initialisation method for scattering matrix"
             )
-        # res = self.scattering_matrix(M, vell, logg)
         return res
 
     def transfer_matrix_at(self, x: int, E: float) -> NDArray:
