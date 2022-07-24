@@ -1,8 +1,11 @@
 import logging
 import sys
+from typing import Iterable
 
 import numpy as np
 from matplotlib import ticker
+
+NDArray = np.ndarray
 
 # from scipy import linalg
 from tabulate import tabulate
@@ -19,7 +22,10 @@ def renormallize_result(res, dy=10):
             pos = 0
 
 
-def adjuct_Tick(axs, **kwarg):
+def adjuct_Tick(axs: NDArray, **kwarg):
+    """
+    Set a style on the axis
+    """
 
     if len(axs.shape) == 1:
         ax = axs.reshape(axs.shape[0], 1)
@@ -57,6 +63,9 @@ def adjuct_Tick(axs, **kwarg):
 
 
 def get_loger(name):
+    """
+    Prepare the logger
+    """
     log = logging.getLogger(__name__)  # .addHandler(logging.NullHandler())
     # logger.basicConfig(format="%(levelname)s - %(message)s")
     log.setLevel(logging.DEBUG)
@@ -85,29 +94,19 @@ def set_zeros(a):
 
 
 def scater_matrix_iunfo(x):
-    # sig = vel_factor*sig
-
+    """
+    Print all the information about the scattering matrix
+    """
     print("scattering matrix")
     print("\treal part")
     print(tabulate(x.real))
     print("\timmaginary part")
     print(tabulate(x.imag))
 
-    # print("inverse vs complex conjugated")
-    # print(np.linalg.inv(x) - x.conj().T, "\n\n")
-
-    # print("complex conjugated")
-    # print(sig.conj().T, "\n\n")
-    # testt = np.matmul(sig.conj(), sig)
-    # print(set_zeros(testt), "\n")
-    # print(testt, "\n")
-
-    # print(f"inverse vs complex conjugated: {np.allclose(linalg.inv(x), x.conj())}")
     print(
         f"inverse vs complex conjugated: {np.allclose(np.matmul(x.conj(), x), np.eye(x.shape[0]))}"
     )
 
-    # print(f"inverse vs transpose complex conjugated: {np.allclose(linalg.inv(x), x.T.conj())}")
     print(
         f"inverse vs transpose complex conjugated: {np.allclose(np.matmul(x.T.conj(), x), np.eye(x.shape[0]))}"
     )
@@ -144,7 +143,7 @@ def scater_matrix_iunfo(x):
     print(rr + tt1)
 
 
-def make_grid(rng, par, funk):
+def make_grid(rng: Iterable, par: Iterable, funk: Iterable):
     """
     evaluate function over a domain and grid fo parameters 
         rng: Iterable --> domain of the function

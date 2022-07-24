@@ -1,8 +1,9 @@
 import numpy as np
 import RashbaJunction.utilities as ut
-from RashbaJunction.RashbaJunction_0_4 import NDArray
 from tabulate import tabulate
 from typing_extensions import Self
+
+NDArray = np.ndarray
 
 
 class ScatteringMatrix:
@@ -24,10 +25,10 @@ class ScatteringMatrix:
         if not np.allclose(
             np.matmul(s.T.conj(), s), np.eye(s.shape[0]), atol=self.unity_tol
         ):
-            self.is_unitary = True
+            self.is_unitary = False
             print("Scattering matrix isn't unitary")
         else:
-            self.is_unitary = False
+            self.is_unitary = True
 
     @property
     def t_coef(self):
