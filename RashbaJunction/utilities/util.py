@@ -1,16 +1,16 @@
 import logging
 import sys
-from typing import Iterable
+from typing import Dict, Iterable
 
 import numpy as np
 from matplotlib import ticker
 
 NDArray = np.ndarray
 
-from ..Errors import EnergyOutOfRangeError, InsulatorError
-
 # from scipy import linalg
 from tabulate import tabulate
+
+from ..Errors import EnergyOutOfRangeError, InsulatorError
 
 
 def error_decorator(func):
@@ -29,7 +29,9 @@ def error_decorator(func):
 
 def adjuct_Tick(axs: NDArray, **kwarg):
     """
-    Set a style on the axis
+    Set a style on the axis in-place
+
+    Function does not return nothing, it change the axis properties by a refference
     """
 
     if len(axs.shape) == 1:
@@ -91,16 +93,12 @@ def get_loger(name):
     return log
 
 
-def set_zeros(a):
-    tol = np.finfo(a.dtype).eps
-    a.real[abs(a.real) < tol] = 0.0
-    a.imag[abs(a.imag) < tol] = 0.0
-    return a
-
 
 def scater_matrix_iunfo(x):
     """
     Print all the information about the scattering matrix
+
+    Used for test purposes
     """
     print("scattering matrix")
     print("\treal part")
@@ -148,18 +146,20 @@ def scater_matrix_iunfo(x):
     print(rr + tt1)
 
 
-def make_grid(rng: Iterable, par: Iterable, funk: Iterable):
+def make_grid(x: Iterable, par: Iterable, funk: Iterable) -> Dict:
     """
-    evaluate function over a domain and grid fo parameters 
-        rng: Iterable --> domain of the function
+    Evaluate function over a domain and grid of parameters 
+        x: Iterable --> domain of the function
         par: Iterable --> parameters; or a tuple of parameters
-        funk: Iterable --> function to efaluate
+        funk: Iterable --> list of functions to evaluate
         
-        return Dictionary(par: array(len(funk), len(rng)))
+        return Dictionary(par: array(len(funk), len(x)))
+            on the row are results for function in order
+            on collumn are resul for a given value of a domain
     """
-    res = {key: np.zeros((len(funk), len(rng)), dtype=object) for key in par}
+    res = {key: np.zeros((len(funk), len(x)), dtype=object) for key in par}
     for ap in par:
-        for ij, i in enumerate(rng):
+        for ij, i in enumerate(x):
             for fj, f in enumerate(funk):
                 res[ap][fj, ij] = f(i, ap)
     return res

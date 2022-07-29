@@ -111,7 +111,7 @@ class WaveFunction(AbstracWaveFunction):
 
     @property
     def E_so(self):
-        return self._E_so
+        return self._E_so / self.E_Z
 
     @E_so.setter
     def E_so(self, e_so):
