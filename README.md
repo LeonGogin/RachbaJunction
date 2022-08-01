@@ -99,5 +99,67 @@ R = S.r_coef
 ## Use in Jupyter notebook
 
 It is  convinient to use the Jupyter notebook to run the computation and visualize the result.
+In order to simplify the computation of the conducting properties over a energy domain `x` and the set of parameter `par` is used the function `make_grid` from utilities module
 
-from RashbaJunction.utilities import adjuct_Tick, make_grid, error_decorator
+```python
+from RashbaJunction.utilities import make_grid
+```
+
+This function takes as arguments:
+
+1. `x` range over which must be computed given functions
+2. `par` list of parameters
+3. `func` list of functions(can be more than one)
+
+Function will capture the `RashbaJunction`-claass and use it to compute the the specific quantity for `x` and parameters `par`.
+
+The `make_grid` will return a dictionary with the `par` as a keys and the list of all evaluated function as results values  `Dict[par: List[func_0(x)...func_N(x)] ]`
+
+### Example: compute the Transmission coefficient
+
+This example illustraite how `make_grid` can be used to compute the transmission coefficient in the case of double interface with SOC energy profile 0|E_SO|0.
+
+```python
+def g(x, par):
+
+    # set up the corresponding parameters
+        # in particular: par[0] is the distance between the interfaces
+                        # par[1] is E_SO in centrall region
+    junction[1] = par[1]
+    junction.interface[0] = -par[0] /2
+    junction.interface[1] = par[0] / 2
+
+    # get scattering matrix for x
+        # in this case x is energy
+    S = junction.get_scattering_matrix(x)
+    # check the unitarity of a scattering matrix 
+    if not S.is_unitary:
+        print(f"not unitary matrix length: x-> {x}, par-> {par}")
+        # return not a number 
+        return np.nan
+    else:
+        return S.t_coef
+# list of parameters
+param = [(10, .1), (10, .4), (10, 10)]
+# a domain ofer which must be compued transmission coefficient
+en = np.arange(-1+1e-7, 1.5, 0.011)
+# perform computation
+    # NOTE even if there is only one the function to evalueate, it still musst be passes as a list
+trasmission_coeff_total = make_grid(en, param, [g])#, gp])
+```
+
+It must be pointed out that the method `get_scattering_matrix` can raise errors in the case if the energy range is incompatible with the set up or the physical regime.
+However it can be handled with a decorator `error_decorator`
+
+```python
+from RashbaJunction.utilities import error_decorator
+
+@error_decorator
+def g(x, par):
+    # implemet function...
+#...
+# e.t.c.
+```
+
+This decorator allow automatically catch the errors and in the case print the values for with the error occures and return not a number(np.nan).
+As alternative the errors can be handled explicitly inside the body of the function.
