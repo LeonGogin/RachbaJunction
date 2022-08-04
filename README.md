@@ -10,7 +10,7 @@ Install requarements
 pip install -r requirements.txt
 ```
 
-All the examples and appliatation are run in Jupyther Notebooks. To oper the notebooks run in cutrrent directory
+All the examples and appliatation are run in [Jupyther Notebooks](https://jupyter.org). To oper the notebooks run in cutrrent directory
 
 ```bash
 jupyter notebook
