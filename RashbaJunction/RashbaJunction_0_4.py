@@ -303,10 +303,10 @@ class WaveFunction(AbstracWaveFunction):
         Order: [incoming modes, outgoing modes]
                 [propagatingmodes, evanescent modes]
         """
-
+        # + np.finfo(np.float64).eps
         if (
             -self.E_so * (1 + (1 / (2 * self.E_so + np.finfo(np.float64).eps)) ** 2)
-            < E
+            <= E
             < -1
         ):
             # under the gap energy range -> 4 propagating modes
@@ -325,7 +325,7 @@ class WaveFunction(AbstracWaveFunction):
             )
             self.band = (-1, -1, -1, -1)
 
-        elif -1 < E < -1 / (4 * self.E_so + np.finfo(np.float64).eps):
+        elif -1 <= E < -1 / (4 * self.E_so + np.finfo(np.float64).eps):
             # inside the gap energy range -> 2 propagating modes
             logger.info("\tfirst in the gap energy range")
             self.scattering_matrix = (
@@ -343,7 +343,7 @@ class WaveFunction(AbstracWaveFunction):
                 -self.k_alpha(E, self.l[3], self.mod[3]),
             )
 
-        elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) < E < 1:
+        elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) <= E < 1:
             # inside the gap energy range -> 2 propagating modes
             logger.info("\tsecond in the gap energy range")
             self.scattering_matrix = (
@@ -381,7 +381,6 @@ class WaveFunction(AbstracWaveFunction):
         else:
             logger.warning("out of range energy")
             raise EnergyOutOfRangeError(
-                # "In Rashba dominated regime E < Eso (1 + (Ez/2Eso)^2)"
                 f"In Rashba dominated regime E = {E:.2f} < -Eso (1 + (Ez/2Eso)^2) = {-self.E_so*(1+(self.E_Z/2/self.E_so)**2):.2f}"
             )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
@@ -396,9 +395,10 @@ class WaveFunction(AbstracWaveFunction):
                 [propagatingmodes, evanescent modes]
         """
 
+        # + np.finfo(np.float64).eps
         if (
             -self.E_so * (1 + (1 / (2 * self.E_so + np.finfo(np.float64).eps)) ** 2)
-            < E
+            <= E
             < -1
         ):
             # under the gap energy range -> 4 evanescent modes
@@ -407,6 +407,10 @@ class WaveFunction(AbstracWaveFunction):
             # self.scattering_matrix = (
             #     ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
             # )
+            if v:
+                raise InsulatorError(
+                    "Inside one or both leads only evanescent modes are present. Scattering matrix can not be defined properly; fail to choose the initialisation method for scattering matrix"
+                )
 
             self.l = (+1, +1, -1, -1)
             self.band = (-1, -1, -1, -1)
@@ -419,7 +423,7 @@ class WaveFunction(AbstracWaveFunction):
                 -self.k_alpha(E, self.l[3], self.mod[3]),
             )
 
-        elif -1 < E < -1 / (4 * self.E_so + np.finfo(np.float64).eps):
+        elif -1 <= E < -1 / (4 * self.E_so + np.finfo(np.float64).eps):
             # inside the gap energy range -> 2 propagating modes
             logger.info("\tfirst in the gap energy range")
             self.scattering_matrix = (
@@ -437,7 +441,7 @@ class WaveFunction(AbstracWaveFunction):
                 -self.k_alpha(E, self.l[3], self.mod[3]),
             )
 
-        elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) < E < 1:
+        elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) <= E < 1:
             # inside the gap energy range -> 2 propagating modes
             logger.info("\tsecond in the gap energy range")
             self.scattering_matrix = (
@@ -475,7 +479,6 @@ class WaveFunction(AbstracWaveFunction):
         else:
             logger.warning("out of range energy")
             raise EnergyOutOfRangeError(
-                # "In Weak Zeeamn dominated regime E < Eso (1 + (Ez/2Eso)^2)"
                 f"In Weak Zeeman regime E = {E:.2f} < -Eso (1 + (Ez/2Eso)^2) = {-self.E_so*(1+(self.E_Z/2/self.E_so)**2):.2f}"
             )
         self.sgn_k = np.sign([i[1] for i in self.wave_vector])
@@ -492,7 +495,7 @@ class WaveFunction(AbstracWaveFunction):
 
         if (
             -self.E_so * (1 + (1 / (2 * self.E_so + np.finfo(np.float64).eps)) ** 2)
-            < E
+            <= E
             < -1 / (4 * self.E_so + np.finfo(np.float64).eps)
         ):
             # under the gap energy range -> 4 evanescent modes
@@ -501,6 +504,10 @@ class WaveFunction(AbstracWaveFunction):
             # self.scattering_matrix = (
             #     ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
             # )
+            if v:
+                raise InsulatorError(
+                    "Inside one or both leads only evanescent modes are present. Scattering matrix can not be defined properly; fail to choose the initialisation method for scattering matrix"
+                )
 
             self.l = (+1, +1, -1, -1)
             self.band = (-1, -1, -1, -1)
@@ -513,12 +520,16 @@ class WaveFunction(AbstracWaveFunction):
                 -self.k_alpha(E, self.l[3], self.mod[3]),
             )
 
-        elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) < E < -1:
+        elif -1 / (4 * self.E_so + np.finfo(np.float64).eps) <= E < -1:
             # under the gap energy range -> 4 evanescent modes
             logger.info("\tfirst under the gap energy range")
             # self.scattering_matrix = (
             #     ScatteringMatrix.insulator if v and len(self.vel_a) != 0 else None
             # )
+            if v:
+                raise InsulatorError(
+                    "Inside one or both leads only evanescent modes are present. Scattering matrix can not be defined properly; fail to choose the initialisation method for scattering matrix"
+                )
 
             self.l = (+1, +1, -1, -1)
             self.band = (+1, +1, -1, -1)
@@ -531,7 +542,7 @@ class WaveFunction(AbstracWaveFunction):
                 -self.k_alpha(E, self.l[3], self.mod[3]),
             )
 
-        elif -1 < E < 1:
+        elif -1 <= E < 1:
             # inside the gap energy range -> 2 propagating modes
             logger.info(f"\tin the gap energy range {v}, {len(self.vel_a)}")
             self.scattering_matrix = (
@@ -666,16 +677,17 @@ class RashbaJunction:
         Higth level interface: typically is called in Notebooks to compute the scatering matrix for a given energy
         """
         M, vell = self.get_transfer_matrix(E)
-        if self.delegate.scattering_matrix:
-            res = self.delegate.scattering_matrix(M, vell, logg)
-            self.delegate.scattering_matrix = None
-        else:
-            # NOTE: In the case of inhomogeneous magnetic field the gap in principle can be different.
-            #        In this way at given energy in leads can be characterized by differnt number of chanels.
-            #        THIS CODE IS NOT SUITABLE TO HANDLE THIS PROBLEM
-            raise InsulatorError(
-                "Inside one or both leads only evanescent modes are present. Scattering matrix can not be defined properly; fail to choose the initialisation method for scattering matrix"
-            )
+        # NOTE: In the case of inhomogeneous magnetic field the gap in principle can be different.
+        #        In this way at given energy in leads can be characterized by differnt number of chanels.
+        #        THIS CODE IS NOT SUITABLE TO HANDLE THIS PROBLEM
+        res = self.delegate.scattering_matrix(M, vell, logg)
+        # if self.delegate.scattering_matrix:
+        #     res = self.delegate.scattering_matrix(M, vell, logg)
+        #     self.delegate.scattering_matrix = None
+        # else:
+        #     raise InsulatorError(
+        #         "Inside one or both leads only evanescent modes are present. Scattering matrix can not be defined properly; fail to choose the initialisation method for scattering matrix"
+        #     )
         return res
 
     def transfer_matrix_at(self, x: int, E: float) -> NDArray:
