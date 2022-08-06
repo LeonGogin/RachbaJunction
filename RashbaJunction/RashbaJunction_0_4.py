@@ -97,7 +97,7 @@ class WaveFunction(AbstracWaveFunction):
 
         self._alpha = 0.0
         self._E_so = 0.0
-        self.E_Z = 0.0
+        self.E_Z = 1.0
 
         self.mod = []
         self.band = []
@@ -111,6 +111,7 @@ class WaveFunction(AbstracWaveFunction):
 
     @property
     def E_so(self):
+        # the SO energy localy is always used in adimensional form
         return self._E_so / self.E_Z
 
     @E_so.setter
@@ -221,12 +222,16 @@ class WaveFunction(AbstracWaveFunction):
             All other components have been prepared in get_boundary_matrix()
         """
         res = []
-
+        #   NOTE: here length is substituted by adimensioal quantity
+        #   x-> k_Z x = sqrt(E_Z) x
+        #
+        # in the case of homogeneous magnetic field E_Z = 1
+        #   is equivalent to the case in which all the parameters always have been adimensional
         for k, m, b in zip(self.wave_vector, self.mod, self.band):
             if m is WaveVector.k:
-                res.append(self.omega_k(x, k, b))
+                res.append(self.omega_k(np.sqrt(self.E_Z) * x, k, b))
             elif m is WaveVector.q:
-                res.append(self.omega_q(x, k, b))
+                res.append(self.omega_q(np.sqrt(self.E_Z) * x, k, b))
         return np.array(res, dtype=np.complex256)
 
     def calculate_velocity(self, E):
@@ -699,10 +704,12 @@ class RashbaJunction:
         
         Is used to compute the wavefuction with multiple interfaces
         """
-        self.E_so = self.alpha_profile[x + 1]
+        # self.E_so = self.alpha_profile[x + 1]
+        self.delegate.E_so = self.alpha_profile[x + 1]
         W_pls = self.get_boundary_matrix(self.interface[x], E, v=False)
 
-        self.E_so = self.alpha_profile[x]
+        # self.E_so = self.alpha_profile[x]
+        self.delegate.E_so = self.alpha_profile[x]
         W_min = self.get_boundary_matrix(self.interface[x], E, v=False)
 
         return np.matmul(linalg.inv(W_pls), W_min)
@@ -744,13 +751,16 @@ class RashbaJunction:
             else:
                 v = False
             # get rigth boundary matrix
-            #   NOTE: here all the parameters are substituted by adimensioal quantity
-            #   x-> k_Z x = sqrt(E_Z) x, E -> E/E_Z
+            #   NOTE: here energy is substituted by adimensioal quantity
+            #   E -> E/E_Z
 
             # in the case of homogeneous magnetic field E_Z = 1
             #   is equivalent to the case in which all the parameters always have been adimensional
             W_pls = self.get_boundary_matrix(
-                np.sqrt(E_Z) * self.interface[n - i - 1], E / E_Z, v=v
+                # np.sqrt(E_Z) * self.interface[n - i - 1], E / E_Z, v=v
+                self.interface[n - i - 1],
+                E / E_Z,
+                v=v,
             )
 
             # left of the i-th interface
@@ -770,7 +780,10 @@ class RashbaJunction:
                 v = False
             # get left boundary matrix
             W_min = self.get_boundary_matrix(
-                np.sqrt(E_Z) * self.interface[n - i - 1], E / E_Z, v=v
+                # np.sqrt(E_Z) * self.interface[n - i - 1], E / E_Z, v=v
+                self.interface[n - i - 1],
+                E / E_Z,
+                v=v,
             )
 
             # matrix multiplication of the inverse of rigth boundary matyrix and the left one
@@ -807,8 +820,10 @@ class RashbaJunction:
         (x:float, E:float, v=False) -> np.ndarray((4, 4), np.complex256)
 
         Therd method in call-chain
-            Energy and length are dimensionless E/E_Z, k_Z*x
+            Energy and length is dimensionless E/E_Z
             (with E_Z appropriate for each region)
+        in the case of inhomogeneous magnetic field the distance is dimensional: x -> sqrt{2m/hbar^2}x
+            It will be transformed in adimensional form inside 'compile_wave_function'
         """
         # change the object property
         #   prepare lables of the wave function
@@ -834,5 +849,7 @@ class RashbaJunction:
 
         use dimensionless energy and length (E/E_Z) only
         """
-        return self.get_boundary_matrix(x, E)[:2, :]
+        # return self.get_boundary_matrix(x, E)[:2, :]
+        self.delegate.prepare_WF(E, v=False)
+        return np.transpose(self.delegate.compile_wave_function(x))
 
