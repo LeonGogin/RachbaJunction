@@ -1,8 +1,17 @@
 # Inhomogeneous Rashba Junction
 
+This packege is a supporting code for a thesis [COHERENT ELECTRON TRANSPORT IN NANOWIRES WITH SPIN-ORBIT COUPLING](http://webthesis.biblio.polito.it/id/eprint/22703), Leonid Gogin.
+In this work have been investigated a conducting properties of the coherent quantum system with picewise constant spin-orbit coupling(SOC) within a Scattering matrix formalism.
+A particular attention have been payed to the interplay of the SOC and customar magnetic field and a relative sign of SOC constan in differnt regions opf the system.
+In particular the code implement the routin that allow to compute a Scattering matrix formalism for very generall setup of the SOC and external magnetic field.
+
+All the computation are performed in the jupyter notebooks, that are compoosed as follows:
+
+*
+
 ## Set up the environment
 
-Thhis module have been developed with `Python 3.8.2`, perhaps it should work fine as well for newer version.
+Thhis package have been developed with `Python 3.8.2`, perhaps it should work fine as well for newer version.
 
 Install requarements
 
@@ -10,7 +19,7 @@ Install requarements
 pip install -r requirements.txt
 ```
 
-All the examples and appliatation are run in [Jupyther Notebooks](https://jupyter.org). To oper the notebooks run in cutrrent directory
+All the examples and calculation are run in [Jupyther Notebooks](https://jupyter.org). To oper the notebooks run in cutrrent directory
 
 ```bash
 jupyter notebook
