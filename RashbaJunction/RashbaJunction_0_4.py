@@ -595,8 +595,6 @@ class RashbaJunction:
     """
     This class affer the end point to handle the SO profile and compute the Scattering matrix.
     This class should be initialised directly.
-    It override some properties and methods of its parrent(WaveFunction) and implement new methods and interfaces that should be used directly in the code.
-    
     """
 
     def __init__(
