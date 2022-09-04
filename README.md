@@ -7,7 +7,14 @@ In particular the code implement the routin that allow to compute a Scattering m
 
 All the computation are performed in the jupyter notebooks, that are compoosed as follows:
 
-*
+* Test notebooks
+  * BaseTest.ipynb
+  * Finite Nanowire (Test).ipynb
+* Tesi support totebook
+  * Coherent electron transport in anowires with SOC.ipynb
+* Paper support Notebooks
+  * Dirac-paradox_paper.ipynb
+  * NW-transport_paper.ipynb
 
 ## Set up the environment
 
